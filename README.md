@@ -68,3 +68,7 @@ Please follow **OWNER_SETUP.md** for the safe login/save/other-browser test. Liv
 ## V1.3 addition — dynamic product names and new products
 
 See `UPDATE_V1_3.md` before deploying. You **must first** run `database/migration_v1_3.sql` in the existing Supabase project; otherwise the new product rows do not exist and the public name-edit controls cannot save.
+
+## V1.4 — Editable catalogue order
+
+See `UPDATE_V1_4.md` and execute `database/migration_v1_4.sql` before deploying. Owner Management supports selecting a visible position (1 = first), with secure RPC reordering and live Supabase persistence.

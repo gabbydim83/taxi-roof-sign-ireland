@@ -8,7 +8,7 @@
   const CONFIG = window.TAXI_CONFIG || {};
   const STORAGE_KEY = 'taxi-roof-sign-preview-settings-v1';
   const defaults = () => Object.fromEntries(CATALOG.map(p => [p.id, {
-    product_id: p.id, product_name: p.id.startsWith('new') ? '' : p.name, product_description: '', is_published: !p.id.startsWith('new'), price_eur: null, collect_info: '', delivery_info: '',
+    product_id: p.id, display_order: CATALOG.indexOf(p) + 1, product_name: p.id.startsWith('new') ? '' : p.name, product_description: '', is_published: !p.id.startsWith('new'), price_eur: null, collect_info: '', delivery_info: '',
     led_enabled: false, cable_enabled: false, cable_length_m: 3, plug_type: '',
     text_english: false, text_irish: false
   }]));
@@ -81,6 +81,20 @@
       all(`[data-price-for="${p.id}"]`).forEach(node => node.textContent = formatPrice(record.price_eur));
       all(`[data-collect-for="${p.id}"]`).forEach(node => node.textContent = record.collect_info?.trim() || 'Ask us for collection details');
       all(`[data-delivery-for="${p.id}"]`).forEach(node => node.textContent = record.delivery_info?.trim() || 'Ask us about delivery');
+    }
+    // Sort the actual card nodes (including pre-rendered cards) by Supabase order.
+    // Draft products remain hidden; ties use the original catalogue sequence.
+    const grid = el('.product-grid');
+    if (grid) {
+      const catalogueIndex = new Map(CATALOG.map((p, i) => [p.id, i]));
+      const positionOf = id => {
+        const pos = Number(settings[id]?.display_order);
+        return Number.isInteger(pos) && pos > 0 ? pos : (catalogueIndex.get(id) ?? 0) + 1;
+      };
+      [...grid.querySelectorAll('[data-product-card]')]
+        .sort((a, b) => positionOf(a.dataset.productCard) - positionOf(b.dataset.productCard)
+          || (catalogueIndex.get(a.dataset.productCard) ?? 0) - (catalogueIndex.get(b.dataset.productCard) ?? 0))
+        .forEach(card => grid.appendChild(card));
     }
     const numberPublished = CATALOG.filter(p=>settings[p.id]?.is_published!==false).length;
     if(el('#catalogue-count'))el('#catalogue-count').textContent=String(numberPublished).padStart(2,'0');

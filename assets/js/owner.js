@@ -16,7 +16,7 @@
   let client = null;
   let isOwner = false;
   let products = Object.fromEntries(CATALOG.map(p => [p.id, {
-    product_id:p.id,product_name:p.id.startsWith('new')?'':p.name,product_description:'',is_published:!p.id.startsWith('new'),price_eur:null,collect_info:'',delivery_info:'',
+    product_id:p.id,display_order:CATALOG.indexOf(p)+1,product_name:p.id.startsWith('new')?'':p.name,product_description:'',is_published:!p.id.startsWith('new'),price_eur:null,collect_info:'',delivery_info:'',
     led_enabled:false,cable_enabled:false,cable_length_m:3,plug_type:'',
     text_english:false,text_irish:false
   }]));
@@ -28,6 +28,49 @@
     } catch (e) { console.warn('Local demo data cannot be read:',e); }
   }
   function notice(value,error=false){$('owner-message').textContent=value;$('owner-message').style.color=error?'#b22537':'#216f4f'}
+  // Position is defined among *published* products, not hidden drafts.
+  // This keeps Position 1 = first visible card even while drafts exist.
+  function publishedInOrder(excludeId = null) {
+    const fallback = new Map(CATALOG.map((p, i) => [p.id, i + 1]));
+    return CATALOG.filter(p => p.id !== excludeId && products[p.id]?.is_published !== false)
+      .sort((a, b) => {
+        const first = Number(products[a.id]?.display_order);
+        const second = Number(products[b.id]?.display_order);
+        const x = Number.isInteger(first) && first > 0 ? first : fallback.get(a.id);
+        const y = Number.isInteger(second) && second > 0 ? second : fallback.get(b.id);
+        return x - y || fallback.get(a.id) - fallback.get(b.id);
+      });
+  }
+  function refreshPositionOptions(id, desired = null) {
+    const select = $('owner-position');
+    const published = $('owner-published').checked;
+    const remaining = publishedInOrder(id);
+    const positions = remaining.length + 1;
+    let chosen = desired;
+    if (!Number.isInteger(chosen)) {
+      const old = publishedInOrder();
+      const oldPosition = old.findIndex(p => p.id === id) + 1;
+      chosen = oldPosition || positions;
+    }
+    chosen = Math.max(1, Math.min(positions, chosen));
+    select.replaceChildren();
+    for (let n = 1; n <= positions; n++) {
+      const option = document.createElement('option');
+      option.value = String(n);
+      option.textContent = n === 1 ? '1 — First product' : `${n} — Position ${n}`;
+      select.appendChild(option);
+    }
+    select.value = String(chosen);
+    select.disabled = !published;
+    $('owner-position-help').textContent = published
+      ? `Choose where this product appears among ${positions} published products. Position 1 is first.`
+      : 'Enable “Show this product” to choose its position. Hidden products are not displayed.';
+  }
+  function reorderLocal(id, newPosition) {
+    const remaining = publishedInOrder(id).map(p => p.id);
+    const newList = [...remaining.slice(0, newPosition - 1), id, ...remaining.slice(newPosition - 1)];
+    newList.forEach((productId, index) => { products[productId].display_order = index + 1; });
+  }
   function showRecord(id) {
     const p=CATALOG.find(x=>x.id===id);if(!p)return;
     const record=products[id]||{};
@@ -36,6 +79,7 @@
     $('owner-name').value=record.product_name || '';
     $('owner-description').value=record.product_description || '';
     $('owner-published').checked=record.is_published!==false;
+    refreshPositionOptions(id);
     $('owner-product-image').src='../assets/images/'+p.image;
     $('owner-product-image').alt=actualName;
     $('owner-price').value=record.price_eur===null||record.price_eur===undefined?'':record.price_eur;
@@ -62,7 +106,7 @@
     if(published && !name)throw new Error('Enter a product name before publishing.');
     if(name.length>120 || desc.length>300)throw new Error('Product name or description is too long.');
     const payload={
-      product_id:id,product_name:name,product_description:desc,is_published:published,price_eur:price,
+      product_id:id,display_order:Number($('owner-position').value),product_name:name,product_description:desc,is_published:published,price_eur:price,
       collect_info:$('owner-collect').value.trim(),
       delivery_info:$('owner-delivery').value.trim(),
       led_enabled:Boolean(current.led_enabled),cable_enabled:Boolean(current.cable_enabled),
@@ -140,14 +184,24 @@
         }).eq('product_id',id).select('product_id').single();
         if(error)throw error;
         if(!data)throw new Error('No product was updated. Verify owner permissions.');
-        products[id]={...products[id],...payload};
-        const selected=productSelect.selectedOptions[0];if(selected)selected.textContent=payload.product_name||('Product '+id+' (draft)');
-        showRecord(id);notice('Saved in Supabase. Product name, price and visibility updated.');
+        // Save the catalogue order atomically in Supabase; other products shift automatically.
+        if (payload.is_published) {
+          const {error:positionError}=await client.rpc('set_product_display_position', {
+            p_product_id: id, p_new_position: payload.display_order
+          });
+          if(positionError) {
+            await loadRemote();
+            throw new Error('Product details saved, but position could not be updated: ' + positionError.message);
+          }
+        }
+        await loadRemote();
+        notice('Saved in Supabase. Catalogue position and product details are updated.');
       }else{
         products[id]={...products[id],...payload};
+        if(payload.is_published) reorderLocal(id, payload.display_order);
         localStorage.setItem(KEY,JSON.stringify(products));
         const selected=productSelect.selectedOptions[0];if(selected)selected.textContent=payload.product_name||('Product '+id+' (draft)');
-        showRecord(id);notice('Saved in this browser only (demo). Not published online.');
+        showRecord(id);notice('Saved in this browser only (demo). Catalogue order is not published online.');
       }
     }catch(error){notice(error.message||'Saving failed.',true)}finally{saveBtn.disabled=false}
   }
@@ -155,6 +209,7 @@
     productSelect.replaceChildren();
     CATALOG.forEach(p=>{const o=document.createElement('option');o.value=p.id;o.textContent=p.name;productSelect.appendChild(o)});
     productSelect.addEventListener('change',()=>showRecord(productSelect.value));
+    $('owner-published').addEventListener('change', () => refreshPositionOptions(productSelect.value, Number($('owner-position').value))); 
     $('owner-cable').addEventListener('change',()=>{$('owner-cable-length').disabled=!$('owner-cable').checked});
     $('owner-form').addEventListener('submit',save);
     $('login-form').addEventListener('submit',signIn);
