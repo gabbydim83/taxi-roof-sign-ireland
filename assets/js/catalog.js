@@ -1,0 +1,81 @@
+window.TAXI_CATALOG = [
+  {
+    "id": "refurbished",
+    "slug": "refurbished-taxi-roofsign",
+    "name": "Refurbished Taxi Roofsign",
+    "image": "product-refurbished.webp",
+    "tag": "Refurbished",
+    "teaser": "Refurbished taxi roofsign with configurable options.",
+    "summary": "Explore the available fittings and text options for this refurbished roofsign.",
+    "type": "refurbished",
+    "bullets": []
+  },
+  {
+    "id": "gs900",
+    "slug": "taxi-roofsign-gs-900",
+    "name": "Taxi Roofsign G&S 900",
+    "image": "product-gs-900.webp",
+    "tag": "G&S 900",
+    "teaser": "Slim roofsign with full-length LED illumination.",
+    "summary": "Available in English or Irish.",
+    "type": "gs900",
+    "bullets": [
+      "Slim & lightweight roof sign with full-length LED illumination.",
+      "Comes with plug and wiring cable.",
+      "Wiring services available."
+    ]
+  },
+  {
+    "id": "northern",
+    "slug": "taxi-roofsign-northern-ireland",
+    "name": "Taxi Roofsign Northern Ireland",
+    "image": "product-northern-ireland.webp",
+    "tag": "Northern Ireland",
+    "teaser": "Taxi roofsign with LED as standard.",
+    "summary": "Comes with LED as standard.",
+    "type": "simple",
+    "bullets": [
+      "Comes with LED as standard.",
+      "Meets all approved specifications for Northern Ireland."
+    ]
+  },
+  {
+    "id": "suction",
+    "slug": "taxi-roofsign-with-suction-cups-gs-900",
+    "name": "Taxi Roofsign With Suction Cups G&S 900",
+    "image": "product-suction-cups.webp",
+    "tag": "Suction cups",
+    "teaser": "Designed for glass and non-magnetic roof applications.",
+    "summary": "Ideal for Tesla or any other car with glass roof.",
+    "type": "suction",
+    "bullets": [
+      "Suitable for cars with aluminum roof (or any other non-magnetic body / roof).",
+      "Available in English or Irish.",
+      "Slim & lightweight roofsign with full-length LED illumination.",
+      "Comes with plug, wiring cable, plate numbers and wheelchair accessible sticker (if required).",
+      "Wiring services available at our premises (connect to meter or switch)."
+    ]
+  },
+  {
+    "id": "roofsign1",
+    "slug": "taxi-roofsign-1",
+    "name": "Taxi Roofsign 1",
+    "image": "product-taxi-roofsign-1.webp",
+    "tag": "107 cm",
+    "teaser": "Heavy 107cm taxi roofsign with L.E.D.",
+    "summary": "Heavy 107cm taxi roofsign with L.E.D.",
+    "type": "simple",
+    "bullets": []
+  },
+  {
+    "id": "roofsign2",
+    "slug": "taxi-roofsign-2",
+    "name": "Taxi Roofsign 2",
+    "image": "product-taxi-roofsign-2.webp",
+    "tag": "LED",
+    "teaser": "Tall taxi roofsign with L.E.D.",
+    "summary": "Tall taxi roofsign with L.E.D.",
+    "type": "simple",
+    "bullets": []
+  }
+];
