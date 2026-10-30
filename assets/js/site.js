@@ -8,7 +8,7 @@
   const CONFIG = window.TAXI_CONFIG || {};
   const STORAGE_KEY = 'taxi-roof-sign-preview-settings-v1';
   const defaults = () => Object.fromEntries(CATALOG.map(p => [p.id, {
-    product_id: p.id, price_eur: null, collect_info: '', delivery_info: '',
+    product_id: p.id, product_name: p.id.startsWith('new') ? '' : p.name, product_description: '', is_published: !p.id.startsWith('new'), price_eur: null, collect_info: '', delivery_info: '',
     led_enabled: false, cable_enabled: false, cable_length_m: 3, plug_type: '',
     text_english: false, text_irish: false
   }]));
@@ -40,15 +40,71 @@
     const number = String(CONFIG.whatsappNumber || '').replace(/\D/g,'');
     return 'https://wa.me/' + number + '?text=' + encodeURIComponent(message);
   }
+  function getName(p) { return settings[p.id]?.product_name?.trim() || p.name; }
+  function cardFor(p) {
+    const card = document.createElement('article');
+    card.className = 'product-card'; card.dataset.productCard = p.id;
+    const url = root + 'products/' + p.slug + '/index.html';
+    const imageLink = document.createElement('a'); imageLink.className='product-image-link';imageLink.href=url;
+    const tag = document.createElement('span');tag.className='product-tag';tag.textContent=p.tag;
+    const img=document.createElement('img');img.src=root+'assets/images/'+p.image;img.alt=p.name;img.loading='lazy';img.width=770;img.height=440;
+    const icon=document.createElement('span');icon.className='image-link-icon';icon.setAttribute('aria-hidden','true');icon.textContent='↗';
+    imageLink.append(tag,img,icon);
+    const body=document.createElement('div');body.className='product-card-body';
+    const category=document.createElement('p');category.className='product-category';category.textContent='TAXI ROOF SIGNS & PRODUCTS';
+    const h3=document.createElement('h3');const a=document.createElement('a');a.href=url;a.textContent=p.name;h3.appendChild(a);
+    const teaser=document.createElement('p');teaser.className='product-teaser';teaser.textContent=p.teaser||'';
+    const bottom=document.createElement('div');bottom.className='card-bottom';
+    const priceWrap=document.createElement('div');const priceLabel=document.createElement('span');priceLabel.className='price-label';priceLabel.textContent='PRICE';
+    const price=document.createElement('strong');price.className='card-price';price.dataset.priceFor=p.id;price.textContent='On request';priceWrap.append(priceLabel,price);
+    const view=document.createElement('a');view.className='view-product';view.href=url;view.textContent='View Product ↗';
+    bottom.append(priceWrap,view);body.append(category,h3,teaser,bottom);card.append(imageLink,body);return card;
+  }
+  function ensureExtraCards() {
+    const grid=el('.product-grid');if (!grid) return;
+    CATALOG.filter(p=>p.id.startsWith('new')).forEach(p=>{
+      if(!grid.querySelector(`[data-product-card="${p.id}"]`)) grid.appendChild(cardFor(p));
+    });
+  }
   function updateSettingsUI() {
+    ensureExtraCards();
     for (const p of CATALOG) {
       const record = settings[p.id] || {};
+      const name=getName(p);
+      all(`[data-product-card="${p.id}"]`).forEach(card=>{
+        card.hidden = record.is_published === false;
+        card.querySelectorAll('h3 a').forEach(a=>a.textContent=name);
+        card.querySelectorAll('.product-image-link').forEach(a=>a.setAttribute('aria-label','View '+name));
+        card.querySelectorAll('img').forEach(img=>img.alt=name+' product photo');
+        card.querySelectorAll('.product-teaser').forEach(t=>t.textContent=record.product_description?.trim() || p.teaser || 'Contact us for product details.');
+      });
       all(`[data-price-for="${p.id}"]`).forEach(node => node.textContent = formatPrice(record.price_eur));
       all(`[data-collect-for="${p.id}"]`).forEach(node => node.textContent = record.collect_info?.trim() || 'Ask us for collection details');
       all(`[data-delivery-for="${p.id}"]`).forEach(node => node.textContent = record.delivery_info?.trim() || 'Ask us about delivery');
     }
-    if (currentProduct?.id === 'refurbished') renderRefurbishedFeatures();
-    if (currentProduct) updateProductOrderMessage();
+    const numberPublished = CATALOG.filter(p=>settings[p.id]?.is_published!==false).length;
+    if(el('#catalogue-count'))el('#catalogue-count').textContent=String(numberPublished).padStart(2,'0');
+    if (currentProduct) {
+      const r=settings[currentProduct.id]||{};
+      if(r.is_published===false){
+        const main=el('main.product-main');if(main){main.replaceChildren();
+          const notice=document.createElement('div');notice.className='container';notice.style.padding='95px 20px';
+          notice.textContent='This product is not currently listed. Please return to the catalogue.';
+          main.appendChild(notice);}
+        const related=el('.related-section');if(related)related.hidden=true;
+      }else{
+        const name=getName(currentProduct);
+        document.querySelectorAll('.detail-body h1').forEach(node=>node.textContent=name);
+        document.querySelectorAll('.breadcrumbs [aria-current="page"]').forEach(node=>node.textContent=name);
+        document.querySelectorAll('.detail-image-wrap img').forEach(img=>img.alt=name+' product photograph');
+        if(r.product_description?.trim())document.querySelectorAll('.product-summary p').forEach(node=>node.textContent=r.product_description.trim());
+        document.title=name+' | Taxi Roof Sign Ireland';
+        const meta=el('meta[name="description"]');if(meta)meta.content=name+'. '+(r.product_description?.trim() || currentProduct.summary || '')+'. Contact the seller to order.';
+        const og=el('meta[property="og:title"]');if(og)og.content=document.title;
+        if(currentProduct.id==='refurbished') renderRefurbishedFeatures();
+        updateProductOrderMessage();
+      }
+    }
   }
   function renderRefurbishedFeatures() {
     const container = el('[data-refurb-features]');
@@ -85,7 +141,7 @@
   function picked(name) { return document.querySelector(`input[name="${name}"]:checked`)?.value || ''; }
   function productMessage() {
     if (!currentProduct) return '';
-    let lines = ['I Want to buy ' + currentProduct.name];
+    let lines = ['I Want to buy ' + getName(currentProduct)];
     if (currentProduct.type === 'gs900') {
       lines.push('Variant: ' + picked('variant'));
       lines.push('Roofsign Number: ' + (el('#roofsign-number')?.value.trim() || 'Not provided'));
@@ -108,7 +164,7 @@
     const link = el('.js-product-order');
     if (!link || !currentProduct) return;
     link.href = fullWhatsAppUrl(productMessage());
-    link.setAttribute('aria-label', 'Book Now on WhatsApp: ' + currentProduct.name);
+    link.setAttribute('aria-label', 'Book Now on WhatsApp: ' + getName(currentProduct));
   }
   function bindMenu() {
     const toggle = el('.menu-toggle'), nav = el('.mobile-nav');
@@ -136,11 +192,11 @@
     });
   }
   function addProductStructuredData() {
-    if (!currentProduct || !location.protocol.startsWith('http')) return;
+    if (!currentProduct || settings[currentProduct.id]?.is_published===false || !location.protocol.startsWith('http')) return;
     const data = {
       '@context':'https://schema.org','@type':'Product',
-      name:currentProduct.name,
-      description:currentProduct.summary,
+      name:getName(currentProduct),
+      description:settings[currentProduct.id]?.product_description?.trim() || currentProduct.summary,
       image:new URL(root + 'assets/images/' + currentProduct.image, location.href).href,
       category:'Taxi roof signs'
     };

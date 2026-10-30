@@ -64,3 +64,7 @@ Please follow **OWNER_SETUP.md** for the safe login/save/other-browser test. Liv
 4. Connect the purchased domain(s), update SEO canonical and indexation, and launch.
 
 **Windows shortcut:** If Python is installed, double-click `Start_Preview_Windows.bat` and keep its terminal window open while reviewing. Otherwise, upload the extracted folder to your preferred static hosting preview.
+
+## V1.3 addition — dynamic product names and new products
+
+See `UPDATE_V1_3.md` before deploying. You **must first** run `database/migration_v1_3.sql` in the existing Supabase project; otherwise the new product rows do not exist and the public name-edit controls cannot save.

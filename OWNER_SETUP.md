@@ -43,3 +43,7 @@ The package does **not** contain the owner's password or any server-side secret 
 ## Limitations of this environment
 
 The package was validated locally but the builder environment could not reach the user's live Supabase host. A real remote authentication + write + read test must be completed in the user's browser. Until then, we cannot claim the live backend has been end-to-end verified.
+
+## V1.3 migration
+
+Run `database/migration_v1_3.sql` on the existing database. This adds editable product names, descriptions, publication toggles and six newly supplied product photos (one confirmed and five drafts). Do not reset the database.

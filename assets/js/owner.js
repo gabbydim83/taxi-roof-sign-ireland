@@ -16,7 +16,7 @@
   let client = null;
   let isOwner = false;
   let products = Object.fromEntries(CATALOG.map(p => [p.id, {
-    product_id:p.id,price_eur:null,collect_info:'',delivery_info:'',
+    product_id:p.id,product_name:p.id.startsWith('new')?'':p.name,product_description:'',is_published:!p.id.startsWith('new'),price_eur:null,collect_info:'',delivery_info:'',
     led_enabled:false,cable_enabled:false,cable_length_m:3,plug_type:'',
     text_english:false,text_irish:false
   }]));
@@ -31,9 +31,13 @@
   function showRecord(id) {
     const p=CATALOG.find(x=>x.id===id);if(!p)return;
     const record=products[id]||{};
-    $('owner-product-name').textContent=p.name;
+    const actualName=record.product_name?.trim() || p.name;
+    $('owner-product-name').textContent=actualName;
+    $('owner-name').value=record.product_name || '';
+    $('owner-description').value=record.product_description || '';
+    $('owner-published').checked=record.is_published!==false;
     $('owner-product-image').src='../assets/images/'+p.image;
-    $('owner-product-image').alt=p.name;
+    $('owner-product-image').alt=actualName;
     $('owner-price').value=record.price_eur===null||record.price_eur===undefined?'':record.price_eur;
     $('owner-collect').value=record.collect_info||'';
     $('owner-delivery').value=record.delivery_info||'';
@@ -52,8 +56,13 @@
     const price=priceString===''?null:Number(priceString);
     if (price!==null && (!Number.isFinite(price)||price<0)) throw new Error('Enter a valid non-negative price.');
     const current=products[id]||{};
+    const name=$('owner-name').value.trim();
+    const desc=$('owner-description').value.trim();
+    const published=$('owner-published').checked;
+    if(published && !name)throw new Error('Enter a product name before publishing.');
+    if(name.length>120 || desc.length>300)throw new Error('Product name or description is too long.');
     const payload={
-      product_id:id,price_eur:price,
+      product_id:id,product_name:name,product_description:desc,is_published:published,price_eur:price,
       collect_info:$('owner-collect').value.trim(),
       delivery_info:$('owner-delivery').value.trim(),
       led_enabled:Boolean(current.led_enabled),cable_enabled:Boolean(current.cable_enabled),
@@ -81,6 +90,7 @@
     const {data,error}=await client.from('product_settings').select('*');
     if (error) throw error;
     for(const row of (data||[]))if(products[row.product_id])products[row.product_id]={...products[row.product_id],...row};
+    CATALOG.forEach(p=>{const opt=[...productSelect.options].find(o=>o.value===p.id);if(opt)opt.textContent=products[p.id]?.product_name?.trim()||p.name;});
     showRecord(productSelect.value);
   }
   async function initProduction() {
@@ -121,6 +131,7 @@
       if(configured){
         if(!isOwner)throw new Error('Sign in as an owner before saving.');
         const {data,error}=await client.from('product_settings').update({
+          product_name:payload.product_name,product_description:payload.product_description,is_published:payload.is_published,
           price_eur:payload.price_eur,collect_info:payload.collect_info,delivery_info:payload.delivery_info,
           led_enabled:payload.led_enabled,cable_enabled:payload.cable_enabled,
           cable_length_m:payload.cable_length_m,plug_type:payload.plug_type,
@@ -130,11 +141,13 @@
         if(error)throw error;
         if(!data)throw new Error('No product was updated. Verify owner permissions.');
         products[id]={...products[id],...payload};
-        notice('Saved to the live database. The catalogue now uses these values.');
+        const selected=productSelect.selectedOptions[0];if(selected)selected.textContent=payload.product_name||('Product '+id+' (draft)');
+        showRecord(id);notice('Saved in Supabase. Product name, price and visibility updated.');
       }else{
         products[id]={...products[id],...payload};
         localStorage.setItem(KEY,JSON.stringify(products));
-        notice('Saved in this browser only (demo). Not published online.');
+        const selected=productSelect.selectedOptions[0];if(selected)selected.textContent=payload.product_name||('Product '+id+' (draft)');
+        showRecord(id);notice('Saved in this browser only (demo). Not published online.');
       }
     }catch(error){notice(error.message||'Saving failed.',true)}finally{saveBtn.disabled=false}
   }

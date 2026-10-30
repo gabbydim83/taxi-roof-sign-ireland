@@ -77,5 +77,77 @@ window.TAXI_CATALOG = [
     "summary": "Tall taxi roofsign with L.E.D.",
     "type": "simple",
     "bullets": []
+  },
+  {
+    "id": "new01",
+    "slug": "complete-taxi-roof-sign-with-magnets",
+    "name": "Complete Taxi Roof Sign with Magnets",
+    "image": "product-complete-magnets.webp",
+    "tag": "New arrival",
+    "teaser": "Complete taxi roof sign with magnets.",
+    "summary": "Complete taxi roof sign with magnets.",
+    "type": "simple",
+    "bullets": [],
+    "draft": false
+  },
+  {
+    "id": "new02",
+    "slug": "additional-product-02",
+    "name": "New product 2 (draft)",
+    "image": "product-new-02.webp",
+    "tag": "Coming soon",
+    "teaser": "",
+    "summary": "",
+    "type": "simple",
+    "bullets": [],
+    "draft": true
+  },
+  {
+    "id": "new03",
+    "slug": "additional-product-03",
+    "name": "New product 3 (draft)",
+    "image": "product-new-03.webp",
+    "tag": "Coming soon",
+    "teaser": "",
+    "summary": "",
+    "type": "simple",
+    "bullets": [],
+    "draft": true
+  },
+  {
+    "id": "new04",
+    "slug": "additional-product-04",
+    "name": "New product 4 (draft)",
+    "image": "product-new-04.webp",
+    "tag": "Coming soon",
+    "teaser": "",
+    "summary": "",
+    "type": "simple",
+    "bullets": [],
+    "draft": true
+  },
+  {
+    "id": "new05",
+    "slug": "additional-product-05",
+    "name": "New product 5 (draft)",
+    "image": "product-new-05.webp",
+    "tag": "Coming soon",
+    "teaser": "",
+    "summary": "",
+    "type": "simple",
+    "bullets": [],
+    "draft": true
+  },
+  {
+    "id": "new06",
+    "slug": "additional-product-06",
+    "name": "New product 6 (draft)",
+    "image": "product-new-06.webp",
+    "tag": "Coming soon",
+    "teaser": "",
+    "summary": "",
+    "type": "simple",
+    "bullets": [],
+    "draft": true
   }
 ];
