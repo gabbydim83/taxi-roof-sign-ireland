@@ -41,30 +41,41 @@
         return x - y || fallback.get(a.id) - fallback.get(b.id);
       });
   }
+  // Use a direct number input, not a native dropdown, so the owner can always
+  // enter 1, 2, 3... (including before publishing a draft product).
+  function syncPositionControls() {
+    const input = $('owner-position');
+    const max = Math.max(1, Number(input.max) || 1);
+    const value = Number(input.value);
+    const valid = Number.isInteger(value) && value >= 1 && value <= max;
+    $('owner-position-prev').disabled = !valid || value <= 1;
+    $('owner-position-next').disabled = !valid || value >= max;
+    $('owner-position-first').disabled = !valid || value <= 1;
+    $('owner-position-last').disabled = !valid || value >= max;
+  }
+  function setPosition(value) {
+    const input = $('owner-position');
+    const max = Math.max(1, Number(input.max) || 1);
+    const v = Number(value);
+    input.value = String(Math.min(max, Math.max(1, Number.isFinite(v) ? Math.round(v) : 1)));
+    syncPositionControls();
+  }
   function refreshPositionOptions(id, desired = null) {
-    const select = $('owner-position');
+    const input = $('owner-position');
     const published = $('owner-published').checked;
-    const remaining = publishedInOrder(id);
-    const positions = remaining.length + 1;
+    const positions = publishedInOrder(id).length + 1;
     let chosen = desired;
     if (!Number.isInteger(chosen)) {
       const old = publishedInOrder();
       const oldPosition = old.findIndex(p => p.id === id) + 1;
       chosen = oldPosition || positions;
     }
-    chosen = Math.max(1, Math.min(positions, chosen));
-    select.replaceChildren();
-    for (let n = 1; n <= positions; n++) {
-      const option = document.createElement('option');
-      option.value = String(n);
-      option.textContent = n === 1 ? '1 — First product' : `${n} — Position ${n}`;
-      select.appendChild(option);
-    }
-    select.value = String(chosen);
-    select.disabled = !published;
+    input.max = String(positions);
+    $('owner-position-total').textContent = `of ${positions}`;
+    setPosition(chosen);
     $('owner-position-help').textContent = published
-      ? `Choose where this product appears among ${positions} published products. Position 1 is first.`
-      : 'Enable “Show this product” to choose its position. Hidden products are not displayed.';
+      ? `Enter a position between 1 and ${positions}. The other published products will shift automatically.`
+      : `This product is hidden. Set its future position (1–${positions}), tick “Show this product” and save to publish it there.`;
   }
   function reorderLocal(id, newPosition) {
     const remaining = publishedInOrder(id).map(p => p.id);
@@ -105,8 +116,13 @@
     const published=$('owner-published').checked;
     if(published && !name)throw new Error('Enter a product name before publishing.');
     if(name.length>120 || desc.length>300)throw new Error('Product name or description is too long.');
+    const displayOrder = Number($('owner-position').value);
+    const maxPosition = Number($('owner-position').max);
+    if (!Number.isInteger(displayOrder) || displayOrder < 1 || displayOrder > maxPosition) {
+      throw new Error(`Choose a whole-number position between 1 and ${maxPosition}.`);
+    }
     const payload={
-      product_id:id,display_order:Number($('owner-position').value),product_name:name,product_description:desc,is_published:published,price_eur:price,
+      product_id:id,display_order:displayOrder,product_name:name,product_description:desc,is_published:published,price_eur:price,
       collect_info:$('owner-collect').value.trim(),
       delivery_info:$('owner-delivery').value.trim(),
       led_enabled:Boolean(current.led_enabled),cable_enabled:Boolean(current.cable_enabled),
@@ -209,7 +225,13 @@
     productSelect.replaceChildren();
     CATALOG.forEach(p=>{const o=document.createElement('option');o.value=p.id;o.textContent=p.name;productSelect.appendChild(o)});
     productSelect.addEventListener('change',()=>showRecord(productSelect.value));
-    $('owner-published').addEventListener('change', () => refreshPositionOptions(productSelect.value, Number($('owner-position').value))); 
+    $('owner-published').addEventListener('change', () => refreshPositionOptions(productSelect.value, Number($('owner-position').value)));
+    $('owner-position').addEventListener('input', syncPositionControls);
+    $('owner-position').addEventListener('change', () => setPosition($('owner-position').value));
+    $('owner-position-prev').addEventListener('click', () => setPosition(Number($('owner-position').value) - 1));
+    $('owner-position-next').addEventListener('click', () => setPosition(Number($('owner-position').value) + 1));
+    $('owner-position-first').addEventListener('click', () => setPosition(1));
+    $('owner-position-last').addEventListener('click', () => setPosition(Number($('owner-position').max)));
     $('owner-cable').addEventListener('change',()=>{$('owner-cable-length').disabled=!$('owner-cable').checked});
     $('owner-form').addEventListener('submit',save);
     $('login-form').addEventListener('submit',signIn);
