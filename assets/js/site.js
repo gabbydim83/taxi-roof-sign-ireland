@@ -18,7 +18,8 @@
   const el = (selector) => document.querySelector(selector);
   const all = (selector) => [...document.querySelectorAll(selector)];
   const productId = document.body?.dataset.product;
-  const currentProduct = CATALOG.find(p => p.id === productId);
+  const isDynamicDetail = document.body?.dataset.dynamicProduct === 'true';
+  let currentProduct = CATALOG.find(p => p.id === productId);
   let settings = defaults();
 
   function fetchLocal() {
@@ -41,13 +42,32 @@
     return 'https://wa.me/' + number + '?text=' + encodeURIComponent(message);
   }
   function getName(p) { return settings[p.id]?.product_name?.trim() || p.name; }
+  function productImageUrl(p) {
+    const value = String(p.image_path || p.image || '');
+    if (p.dynamic && value.startsWith(CONFIG.supabaseUrl + '/storage/v1/object/public/taxi-product-images/')) return value;
+    if (p.dynamic && value.startsWith('assets/images/')) return root + value;
+    return root + 'assets/images/' + (p.dynamic ? '' : value);
+  }
+  function productUrl(p) {
+    return p.dynamic
+      ? root + 'products/item/index.html?id=' + encodeURIComponent(p.id)
+      : root + 'products/' + p.slug + '/index.html';
+  }
+  function dynamicCatalogueRow(row) {
+    return {
+      id: row.product_id, slug: 'item', name: row.product_name,
+      image_path: row.image_path, tag: 'Taxi roof sign part',
+      teaser: row.product_description, summary: row.product_description,
+      type: 'simple', dynamic: true
+    };
+  }
   function cardFor(p) {
     const card = document.createElement('article');
     card.className = 'product-card'; card.dataset.productCard = p.id;
-    const url = root + 'products/' + p.slug + '/index.html';
+    const url = productUrl(p);
     const imageLink = document.createElement('a'); imageLink.className='product-image-link';imageLink.href=url;
     const tag = document.createElement('span');tag.className='product-tag';tag.textContent=p.tag;
-    const img=document.createElement('img');img.src=root+'assets/images/'+p.image;img.alt=p.name;img.loading='lazy';img.width=770;img.height=440;
+    const img=document.createElement('img');img.src=productImageUrl(p);img.alt=p.name;img.loading='lazy';img.width=770;img.height=440;
     const icon=document.createElement('span');icon.className='image-link-icon';icon.setAttribute('aria-hidden','true');icon.textContent='↗';
     imageLink.append(tag,img,icon);
     const body=document.createElement('div');body.className='product-card-body';
@@ -62,11 +82,12 @@
   }
   function ensureExtraCards() {
     const grid=el('.product-grid');if (!grid) return;
-    CATALOG.filter(p=>p.id.startsWith('new')).forEach(p=>{
+    CATALOG.filter(p=>p.id.startsWith('new') || p.dynamic).forEach(p=>{
       if(!grid.querySelector(`[data-product-card="${p.id}"]`)) grid.appendChild(cardFor(p));
     });
   }
   function updateSettingsUI() {
+    if (isDynamicDetail) renderDynamicDetail();
     ensureExtraCards();
     for (const p of CATALOG) {
       const record = settings[p.id] || {};
@@ -75,7 +96,7 @@
         card.hidden = record.is_published === false;
         card.querySelectorAll('h3 a').forEach(a=>a.textContent=name);
         card.querySelectorAll('.product-image-link').forEach(a=>a.setAttribute('aria-label','View '+name));
-        card.querySelectorAll('img').forEach(img=>img.alt=name+' product photo');
+        card.querySelectorAll('img').forEach(img=>{img.alt=name+' product photo'; if (p.dynamic) img.src=productImageUrl(p);});
         card.querySelectorAll('.product-teaser').forEach(t=>t.textContent=record.product_description?.trim() || p.teaser || 'Contact us for product details.');
       });
       all(`[data-price-for="${p.id}"]`).forEach(node => node.textContent = formatPrice(record.price_eur));
@@ -119,6 +140,38 @@
         updateProductOrderMessage();
       }
     }
+  }
+  function renderDynamicDetail() {
+    const id = new URLSearchParams(location.search).get('id') || '';
+    currentProduct = CATALOG.find(p => p.dynamic && p.id === id) || null;
+    const main = el('main.product-main');
+    if (!main) return;
+    if (!currentProduct || settings[id]?.is_published !== true) {
+      main.hidden=false;
+      main.replaceChildren();
+      const message=document.createElement('div');message.className='container';
+      message.style.padding='95px 20px';
+      message.textContent='This product is not currently listed. Please return to the catalogue.';
+      main.appendChild(message);
+      document.title='Product not available | Taxi Roof Sign Ireland';
+      el('meta[name="robots"]')?.setAttribute('content','noindex,nofollow');
+      return;
+    }
+    const row=settings[id];
+    const name=getName(currentProduct);
+    el('#dynamic-image').src=productImageUrl(currentProduct);
+    el('#dynamic-image').alt=name;
+    el('#dynamic-name').textContent=name;
+    el('#dynamic-crumb').textContent=name;
+    el('#dynamic-description').textContent=row.product_description?.trim() || 'Please contact us for more information.';
+    el('#dynamic-price').setAttribute('data-price-for',id);
+    el('#dynamic-collect').setAttribute('data-collect-for',id);
+    el('#dynamic-delivery').setAttribute('data-delivery-for',id);
+    const order=el('.js-product-order');order.dataset.orderFor=id;
+    document.title=name+' | Taxi Roof Sign Ireland';
+    const meta=el('meta[name="description"]');
+    if(meta)meta.content=name+'. '+(row.product_description||'').slice(0,155);
+    main.hidden=false;
   }
   function renderRefurbishedFeatures() {
     const container = el('[data-refurb-features]');
@@ -211,7 +264,7 @@
       '@context':'https://schema.org','@type':'Product',
       name:getName(currentProduct),
       description:settings[currentProduct.id]?.product_description?.trim() || currentProduct.summary,
-      image:new URL(root + 'assets/images/' + currentProduct.image, location.href).href,
+      image:new URL(productImageUrl(currentProduct), location.href).href,
       category:'Taxi roof signs'
     };
     // No offer or availability is asserted while product prices are not confirmed.
@@ -223,7 +276,12 @@
     const client = createClient(CONFIG.supabaseUrl,CONFIG.supabasePublishableKey || CONFIG.supabaseAnonKey);
     const {data,error} = await client.from('product_settings').select('*');
     if (error) throw error;
-    (data || []).forEach(row => { if (settings[row.product_id]) settings[row.product_id] = {...settings[row.product_id],...row}; });
+    (data || []).forEach(row => {
+      if (row.product_id.startsWith('custom_') && row.image_path && !CATALOG.some(p=>p.id===row.product_id)) {
+        CATALOG.push(dynamicCatalogueRow(row));
+      }
+      if (CATALOG.some(p=>p.id===row.product_id)) settings[row.product_id] = {...settings[row.product_id],...row};
+    });
     return settings;
   }
   async function init() {

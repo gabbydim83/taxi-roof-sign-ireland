@@ -49,3 +49,11 @@
 .owner-position-shortcuts button{border:1px solid #cbd9e1;border-radius:8px;background:#fff;color:#214658;font-size:12px;font-weight:700;padding:9px 12px;cursor:pointer}
 .owner-position-label small{font-size:11px;line-height:1.6;font-weight:500;color:#72889a}
 @media(max-width:400px){.owner-position-control{gap:7px}.owner-position-step{flex-basis:42px;height:44px}.owner-edit .owner-position-control input{width:72px;min-width:72px;max-width:72px}}
+
+/* V1.6: dynamic new products in the existing Owner Management */
+.owner-bar{flex-wrap:wrap;gap:12px}
+.owner-bar #owner-new-product{white-space:nowrap}
+.owner-image-controls{margin:20px 0;display:grid;gap:14px}
+.owner-image-controls label{font-size:13px;font-weight:700;color:#335367;display:grid;gap:7px}
+.owner-image-controls input{width:100%;padding:13px;border:1px solid #cbd9e1;border-radius:8px;background:#fff;color:#10263b;font:inherit}
+.owner-image-controls small{color:#627b89}

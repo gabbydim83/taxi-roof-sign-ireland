@@ -5,6 +5,10 @@
   'use strict';
   const CATALOG = window.TAXI_CATALOG || [];
   const CONFIG = window.TAXI_CONFIG || {};
+  const STATIC_COUNT = CATALOG.length;
+  const NEW_SENTINEL = '__create__';
+  const BUCKET = 'taxi-product-images';
+  let creating = false;
   const KEY = 'taxi-roof-sign-preview-settings-v1';
   const configured = Boolean(CONFIG.supabaseUrl && (CONFIG.supabasePublishableKey || CONFIG.supabaseAnonKey));
   const isLocalPreview = location.protocol === 'file:' || ['localhost','127.0.0.1','[::1]'].includes(location.hostname);
@@ -26,6 +30,26 @@
       const data=JSON.parse(localStorage.getItem(KEY)||'{}');
       for (const id of Object.keys(products)) if (data[id]) products[id]={...products[id],...data[id]};
     } catch (e) { console.warn('Local demo data cannot be read:',e); }
+  }
+  function imageSource(p) {
+    const value=String(p.image_path || p.image || '');
+    if (p.dynamic && value.startsWith(CONFIG.supabaseUrl + '/storage/v1/object/public/'+BUCKET+'/')) return value;
+    if (p.dynamic && value.startsWith('assets/images/')) return '../'+value;
+    return '../assets/images/' + (p.dynamic ? '' : value);
+  }
+  function imageAllowed(value) {
+    if (!value) return false;
+    if (/^assets\/images\/[\p{L}\p{N} _().-]+\.(webp|png|jpg|jpeg)$/u.test(value)) return true;
+    return value.startsWith(CONFIG.supabaseUrl + '/storage/v1/object/public/'+BUCKET+'/');
+  }
+  function fillProductOptions(selected) {
+    productSelect.replaceChildren();
+    CATALOG.forEach(p=>{
+      const option=document.createElement('option');option.value=p.id;
+      option.textContent=products[p.id]?.product_name?.trim() || p.name;
+      productSelect.appendChild(option);
+    });
+    if (selected && CATALOG.some(p=>p.id===selected)) productSelect.value=selected;
   }
   function notice(value,error=false){$('owner-message').textContent=value;$('owner-message').style.color=error?'#b22537':'#216f4f'}
   // Position is defined among *published* products, not hidden drafts.
@@ -91,8 +115,14 @@
     $('owner-description').value=record.product_description || '';
     $('owner-published').checked=record.is_published!==false;
     refreshPositionOptions(id);
-    $('owner-product-image').src='../assets/images/'+p.image;
+    $('owner-product-image').src=imageSource(p);
     $('owner-product-image').alt=actualName;
+    $('owner-dynamic-image-options').hidden=!p.dynamic;
+    $('owner-image-path').value=p.dynamic ? (record.image_path || '') : '';
+    $('owner-image-file').value='';
+    $('owner-new-product').hidden=false;
+    $('owner-edit-heading').textContent='Product details';
+    creating=false;
     $('owner-price').value=record.price_eur===null||record.price_eur===undefined?'':record.price_eur;
     $('owner-collect').value=record.collect_info||'';
     $('owner-delivery').value=record.delivery_info||'';
@@ -105,6 +135,34 @@
     $('owner-irish').checked=Boolean(record.text_irish);
     $('owner-cable-length').disabled=!$('owner-cable').checked;
     notice('');
+  }
+  function showNewProduct() {
+    if (!configured || !isOwner) return notice('Sign in as an owner to create products.',true);
+    creating=true;
+    productSelect.selectedIndex=-1;
+    $('owner-edit-heading').textContent='Add New Product';
+    $('owner-product-name').textContent='New product';
+    $('owner-product-image').removeAttribute('src');
+    $('owner-product-image').alt='Choose an image for this product';
+    $('owner-name').value='';$('owner-description').value='';
+    $('owner-price').value='';$('owner-collect').value='';$('owner-delivery').value='';
+    $('owner-published').checked=true;
+    $('owner-dynamic-image-options').hidden=false;
+    $('owner-image-path').value='';$('owner-image-file').value='';
+    $('owner-features').hidden=true;
+    refreshPositionOptions(NEW_SENTINEL,publishedInOrder().length+1);
+    notice('Enter the new product details and choose a photograph, then save.');
+  }
+  async function uploadPhoto(file,id) {
+    if(!file)return null;
+    const allowed={'image/webp':'.webp','image/png':'.png','image/jpeg':'.jpg'};
+    if(!allowed[file.type])throw new Error('Use a WebP, PNG or JPG image.');
+    if(file.size>5*1024*1024)throw new Error('The image must be no larger than 5 MB.');
+    const filename=id+'/'+crypto.randomUUID().replace(/-/g,'')+allowed[file.type];
+    const {error}=await client.storage.from(BUCKET).upload(filename,file,{contentType:file.type,upsert:false});
+    if(error)throw new Error('Image upload failed: '+error.message);
+    const {data}=client.storage.from(BUCKET).getPublicUrl(filename);
+    return data.publicUrl;
   }
   function createPayload(id){
     const priceString=$('owner-price').value.trim();
@@ -146,12 +204,24 @@
     const {data,error}=await client.from('admin_users').select('user_id').eq('user_id',session.user.id).maybeSingle();
     return !error && Boolean(data);
   }
-  async function loadRemote() {
+  async function loadRemote(preferredId=null) {
+    const selected=preferredId || productSelect.value;
     const {data,error}=await client.from('product_settings').select('*');
     if (error) throw error;
-    for(const row of (data||[]))if(products[row.product_id])products[row.product_id]={...products[row.product_id],...row};
-    CATALOG.forEach(p=>{const opt=[...productSelect.options].find(o=>o.value===p.id);if(opt)opt.textContent=products[p.id]?.product_name?.trim()||p.name;});
-    showRecord(productSelect.value);
+    // Entries added by the owner are discovered from Supabase, not hardcoded in catalog.js.
+    CATALOG.splice(STATIC_COUNT);
+    for(const row of (data||[])){
+      if(row.product_id.startsWith('custom_')){
+        CATALOG.push({id:row.product_id, slug:'item', name:row.product_name,
+          image_path:row.image_path,tag:'Taxi roof sign part',teaser:row.product_description,
+          summary:row.product_description,type:'simple',dynamic:true});
+      }
+      if(CATALOG.some(p=>p.id===row.product_id)){
+        products[row.product_id]={...products[row.product_id],...row};
+      }
+    }
+    fillProductOptions(selected);
+    showRecord(productSelect.value || CATALOG[0].id);
   }
   async function initProduction() {
     mode.classList.add('secure');
@@ -183,40 +253,60 @@
     finally{button.disabled=false;}
   }
   async function save(event){
-    event.preventDefault();const id=productSelect.value;
+    event.preventDefault();
+    const isNew=creating;
+    const id=isNew ? 'custom_'+crypto.randomUUID().replace(/-/g,'').slice(0,20) : productSelect.value;
     const saveBtn=$('owner-save');
     try{
       const payload=createPayload(id);
       saveBtn.disabled=true;notice('Saving…');
       if(configured){
         if(!isOwner)throw new Error('Sign in as an owner before saving.');
-        const {data,error}=await client.from('product_settings').update({
-          product_name:payload.product_name,product_description:payload.product_description,is_published:payload.is_published,
-          price_eur:payload.price_eur,collect_info:payload.collect_info,delivery_info:payload.delivery_info,
-          led_enabled:payload.led_enabled,cable_enabled:payload.cable_enabled,
-          cable_length_m:payload.cable_length_m,plug_type:payload.plug_type,
-          text_english:payload.text_english,text_irish:payload.text_irish,
-          updated_at:new Date().toISOString()
-        }).eq('product_id',id).select('product_id').single();
-        if(error)throw error;
-        if(!data)throw new Error('No product was updated. Verify owner permissions.');
-        // Save the catalogue order atomically in Supabase; other products shift automatically.
-        if (payload.is_published) {
-          const {error:positionError}=await client.rpc('set_product_display_position', {
-            p_product_id: id, p_new_position: payload.display_order
-          });
-          if(positionError) {
-            await loadRemote();
-            throw new Error('Product details saved, but position could not be updated: ' + positionError.message);
-          }
+        const p=CATALOG.find(x=>x.id===id);
+        const file=$('owner-image-file').files[0];
+        let path=($('owner-image-path').value||'').trim();
+        if(!isNew && p && !p.dynamic)path='';
+        if(file) path=await uploadPhoto(file,id);
+        if((isNew || p?.dynamic) && path && !imageAllowed(path))throw new Error('Choose a photo or a valid assets/images/ path.');
+        if(isNew && !path)throw new Error('Choose a product image before saving.');
+        const record={
+          product_name:payload.product_name, product_description:payload.product_description,
+          is_published:payload.is_published,price_eur:payload.price_eur,
+          collect_info:payload.collect_info,delivery_info:payload.delivery_info
+        };
+        if(isNew){
+          const {data,error}=await client.from('product_settings').insert({
+            ...record,product_id:id,display_order:9999,image_path:path
+          }).select('product_id').single();
+          if(error)throw error;
+          if(!data)throw new Error('The new product was not created.');
+        }else{
+          const update={...record,
+            led_enabled:payload.led_enabled,cable_enabled:payload.cable_enabled,
+            cable_length_m:payload.cable_length_m,plug_type:payload.plug_type,
+            text_english:payload.text_english,text_irish:payload.text_irish,
+            updated_at:new Date().toISOString()};
+          if(p?.dynamic)update.image_path=path;
+          const {data,error}=await client.from('product_settings').update(update)
+            .eq('product_id',id).select('product_id').single();
+          if(error)throw error;
+          if(!data)throw new Error('No product was updated. Verify owner permissions.');
         }
-        await loadRemote();
-        notice('Saved in Supabase. Catalogue position and product details are updated.');
+        if(payload.is_published){
+          const {error}=await client.rpc('set_product_display_position',{
+            p_product_id:id,p_new_position:payload.display_order
+          });
+          if(error){await loadRemote(id);throw new Error('Details saved, but order not changed: '+error.message);}
+        }
+        await loadRemote(id);
+        notice(isNew ? 'New product saved in Supabase. It is now available in the catalogue if published.' : 'Saved in Supabase. Product updated.');
       }else{
+        if(isNew)throw new Error('Creating products requires the live Supabase database.');
         products[id]={...products[id],...payload};
-        if(payload.is_published) reorderLocal(id, payload.display_order);
+        if(payload.is_published) reorderLocal(id,payload.display_order);
         localStorage.setItem(KEY,JSON.stringify(products));
-        const selected=productSelect.selectedOptions[0];if(selected)selected.textContent=payload.product_name||('Product '+id+' (draft)');
+        const selected=productSelect.selectedOptions[0];
+        if(selected)selected.textContent=payload.product_name||('Product '+id+' (draft)');
         showRecord(id);notice('Saved in this browser only (demo). Catalogue order is not published online.');
       }
     }catch(error){notice(error.message||'Saving failed.',true)}finally{saveBtn.disabled=false}
@@ -225,6 +315,7 @@
     productSelect.replaceChildren();
     CATALOG.forEach(p=>{const o=document.createElement('option');o.value=p.id;o.textContent=p.name;productSelect.appendChild(o)});
     productSelect.addEventListener('change',()=>showRecord(productSelect.value));
+    $('owner-new-product').addEventListener('click',showNewProduct);
     $('owner-published').addEventListener('change', () => refreshPositionOptions(productSelect.value, Number($('owner-position').value)));
     $('owner-position').addEventListener('input', syncPositionControls);
     $('owner-position').addEventListener('change', () => setPosition($('owner-position').value));
@@ -233,6 +324,11 @@
     $('owner-position-first').addEventListener('click', () => setPosition(1));
     $('owner-position-last').addEventListener('click', () => setPosition(Number($('owner-position').max)));
     $('owner-cable').addEventListener('change',()=>{$('owner-cable-length').disabled=!$('owner-cable').checked});
+    $('owner-image-file').addEventListener('change',()=>{
+      const file=$('owner-image-file').files[0];
+      if(file){const url=URL.createObjectURL(file);const img=$('owner-product-image');
+        img.onload=()=>URL.revokeObjectURL(url);img.src=url;}
+    });
     $('owner-form').addEventListener('submit',save);
     $('login-form').addEventListener('submit',signIn);
     $('owner-logout').addEventListener('click',async()=>{if(client)await client.auth.signOut();enableDashboard(false);$('owner-logout').hidden=true;$('login-password').value='';notice('')});
