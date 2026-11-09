@@ -93,14 +93,14 @@ window.TAXI_CATALOG = [
   {
     "id": "new02",
     "slug": "additional-product-02",
-    "name": "New product 2 (draft)",
-    "image": "product-new-02.webp",
-    "tag": "Coming soon",
-    "teaser": "",
-    "summary": "",
+    "name": "Yellow Part for Taxi Roof Sign",
+    "image": "Profil galben extrudat în perspectivă.webp",
+    "tag": "Yellow part",
+    "teaser": "Yellow roof sign component with a long angled profile. Contact us to confirm dimensions and compatibility with your roof sign before ordering.",
+    "summary": "Yellow roof sign component with a long angled profile. Contact us to confirm dimensions and compatibility with your roof sign before ordering.",
     "type": "simple",
     "bullets": [],
-    "draft": true
+    "draft": false
   },
   {
     "id": "new03",
